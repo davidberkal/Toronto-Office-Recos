@@ -126,17 +126,18 @@
     /* Filter chips */
     .filter-row {
       display: flex;
-      gap: 6px;
-      padding: 12px 14px;
+      flex-wrap: wrap;
+      gap: 5px;
+      padding: 10px 12px;
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
     }
     .filter-btn {
-      flex: 1;
+      flex: 0 0 auto;
       border: 1px solid var(--border);
       background: var(--white);
       border-radius: 20px;
-      padding: 5px 0;
+      padding: 5px 10px;
       font-family: var(--font-body);
       font-size: 0.75rem;
       font-weight: 600;
@@ -150,6 +151,11 @@
     .filter-btn.active[data-cat="lunch"]       { background: var(--pin-lunch); border-color: var(--pin-lunch); color: #fff; }
     .filter-btn.active[data-cat="dinner"]      { background: var(--pin-dinner); border-color: var(--pin-dinner); color: #fff; }
     .filter-btn.active[data-cat="sightseeing"] { background: var(--pin-sightseeing); border-color: var(--pin-sightseeing); color: #fff; }
+    .filter-btn.active[data-cat="brunch"]      { background: #C05621; border-color: #C05621; color: #fff; }
+    .filter-btn.active[data-cat="coffee"]      { background: #5D4037; border-color: #5D4037; color: #fff; }
+    .filter-btn.active[data-cat="patios"]      { background: #00838F; border-color: #00838F; color: #fff; }
+    .filter-btn.active[data-cat="workouts"]    { background: #C62828; border-color: #C62828; color: #fff; }
+    .filter-btn.active[data-cat="activities"]  { background: #6A1B9A; border-color: #6A1B9A; color: #fff; }
 
     /* Location list */
     #location-list {
@@ -427,6 +433,64 @@
     }
     #comment-form button:hover { opacity: 0.88; }
 
+    /* ── Delete button ────────────────────────────────────────────── */
+    #detail-delete-area {
+      margin-bottom: 18px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    #detail-delete-btn {
+      background: none;
+      border: 1px solid rgba(198,40,40,0.25);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-family: var(--font-body);
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #C62828;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    #detail-delete-btn:hover {
+      background: rgba(198,40,40,0.08);
+      border-color: rgba(198,40,40,0.4);
+    }
+    #detail-delete-confirm {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--charcoal);
+    }
+    #detail-delete-confirm.hidden { display: none; }
+    #detail-delete-yes {
+      background: #C62828;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      padding: 5px 12px;
+      font-family: var(--font-body);
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.12s;
+    }
+    #detail-delete-yes:hover { opacity: 0.85; }
+    #detail-delete-cancel {
+      background: var(--bg);
+      color: var(--charcoal);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 5px 12px;
+      font-family: var(--font-body);
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    #detail-delete-cancel:hover { background: var(--border); }
+
     /* ── Add Place Modal ─────────────────────────────────────────── */
     #modal-overlay {
       position: fixed;
@@ -576,9 +640,13 @@
     <aside id="sidebar">
       <div class="filter-row">
         <button class="filter-btn active" data-cat="all">All</button>
+        <button class="filter-btn" data-cat="brunch">Brunch</button>
         <button class="filter-btn" data-cat="lunch">Lunch</button>
         <button class="filter-btn" data-cat="dinner">Dinner</button>
-        <button class="filter-btn" data-cat="sightseeing">See</button>
+        <button class="filter-btn" data-cat="coffee">Coffee</button>
+        <button class="filter-btn" data-cat="patios">Patios</button>
+        <button class="filter-btn" data-cat="workouts">Workouts</button>
+        <button class="filter-btn" data-cat="activities">Activities</button>
       </div>
       <ul id="location-list"></ul>
     </aside>
@@ -603,6 +671,14 @@
             ↗ Open in Google Maps
           </a>
           <div class="detail-added-by" id="detail-added-by"></div>
+          <div id="detail-delete-area">
+            <button id="detail-delete-btn">Remove this place</button>
+            <div id="detail-delete-confirm" class="hidden">
+              <span>Are you sure?</span>
+              <button id="detail-delete-yes">Yes, delete</button>
+              <button id="detail-delete-cancel">Cancel</button>
+            </div>
+          </div>
           <section id="comments-section">
             <h3>Comments</h3>
             <ul id="comments-list"></ul>
@@ -642,8 +718,13 @@
       <div class="modal-field">
         <label for="place-category">Category</label>
         <select id="place-category">
+          <option value="brunch">🥞 Brunch</option>
           <option value="lunch">🥗 Lunch — nearby office</option>
           <option value="dinner">🍽️ Dinner</option>
+          <option value="coffee">☕ Coffee</option>
+          <option value="patios">🍻 Patios / Drinks</option>
+          <option value="workouts">💪 Workouts</option>
+          <option value="activities">🎯 Activities</option>
           <option value="sightseeing">🗺️ Sightseeing</option>
         </select>
       </div>
@@ -698,8 +779,13 @@
     const MAP_ZOOM   = 15;
 
     const CATEGORIES = {
+      brunch:      { label: "Brunch",      color: "#C05621" },
       lunch:       { label: "Lunch",       color: "#395542" },
       dinner:      { label: "Dinner",      color: "#9A6E00" },
+      coffee:      { label: "Coffee",      color: "#5D4037" },
+      patios:      { label: "Patios",      color: "#00838F" },
+      workouts:    { label: "Workouts",    color: "#C62828" },
+      activities:  { label: "Activities",  color: "#6A1B9A" },
       sightseeing: { label: "Sightseeing", color: "#2B7EA6" }
     };
 
@@ -784,6 +870,7 @@
 
       initFirebase();
       subscribeLocations(onLocationsUpdate);
+      seedAllCategories();
 
       // Hide setup banner if keys look real
       if (isSetupComplete()) {
@@ -884,6 +971,7 @@
     function openDetail(locationId) {
       activeLocationId = locationId;
       renderSidebar(); // update active highlight
+      resetDeleteButton(); // reset delete confirmation state
 
       const panel = document.getElementById("detail-panel");
       panel.classList.remove("hidden");
@@ -943,6 +1031,36 @@
     }
 
     document.getElementById("detail-close").addEventListener("click", closeDetail);
+
+    // ── Delete location ──────────────────────────────────────────
+    document.getElementById("detail-delete-btn").addEventListener("click", () => {
+      document.getElementById("detail-delete-btn").style.display = "none";
+      document.getElementById("detail-delete-confirm").classList.remove("hidden");
+    });
+
+    document.getElementById("detail-delete-cancel").addEventListener("click", () => {
+      document.getElementById("detail-delete-confirm").classList.add("hidden");
+      document.getElementById("detail-delete-btn").style.display = "";
+    });
+
+    document.getElementById("detail-delete-yes").addEventListener("click", () => {
+      if (!activeLocationId) return;
+      const id = activeLocationId;
+      // Remove location and its comments from Firebase
+      db.ref(`locations/${id}`).remove();
+      db.ref(`comments/${id}`).remove();
+      // Remove marker from map
+      if (markers[id]) {
+        markers[id].setMap(null);
+        delete markers[id];
+      }
+      closeDetail();
+    });
+
+    function resetDeleteButton() {
+      document.getElementById("detail-delete-btn").style.display = "";
+      document.getElementById("detail-delete-confirm").classList.add("hidden");
+    }
 
     // ── Places API enrichment ────────────────────────────────────
     function fetchPlaceDetails(placeId) {
@@ -1135,6 +1253,225 @@
         .replace(/</g,"&lt;")
         .replace(/>/g,"&gt;")
         .replace(/"/g,"&quot;");
+    }
+
+    // ── Seed data ─────────────────────────────────────────────────
+    const SEED_DATA = {
+      brunch: [
+        { q: "Bar Buca Toronto" },
+        { q: "Baddies Toronto brunch" },
+        { q: "The Federal Toronto restaurant" },
+        { q: "School Restaurant Toronto" },
+        { q: "Old School Toronto restaurant" },
+        { q: "Mildred's Temple Kitchen Toronto" },
+        { q: "Saving Grace Toronto restaurant" },
+        { q: "Lady Marmalade Toronto" },
+        { q: "Le Petit Dejeuner Toronto" },
+        { q: "Sisters and Co Toronto restaurant" },
+        { q: "Maha's Egyptian Brunch Toronto" },
+        { q: "White Lily Diner Toronto" },
+        { q: "Bonjour Brioche Toronto" },
+        { q: "Good Fork Toronto restaurant" },
+        { q: "Baro Toronto restaurant" },
+        { q: "Gusto 501 Toronto" }
+      ],
+      dinner: [
+        { q: "La Palma Toronto restaurant" },
+        { q: "Alo Restaurant Toronto" },
+        { q: "Aloette Toronto restaurant" },
+        { q: "Tanto Toronto restaurant" },
+        { q: "Grey Gardens Toronto restaurant" },
+        { q: "Bar Raval Toronto" },
+        { q: "La Banane Toronto restaurant" },
+        { q: "Parallel Toronto restaurant" },
+        { q: "Bodega Toronto restaurant" },
+        { q: "Buca Toronto restaurant King Street" },
+        { q: "Lake Inez Toronto restaurant" },
+        { q: "Lee Restaurant Toronto" },
+        { q: "Campechano Toronto" },
+        { q: "Enoteca Sociale Toronto" },
+        { q: "Odd Seoul Toronto restaurant" },
+        { q: "Wilbur Toronto restaurant" },
+        { q: "Le Select Bistro Toronto" },
+        { q: "Tabule Toronto restaurant" },
+        { q: "Pai Northern Thai Kitchen Toronto" },
+        { q: "Mamakas Tavern Toronto" },
+        { q: "BlueBlood Steakhouse Toronto" },
+        { q: "Pho Tien Thanh Toronto" },
+        { q: "UFO Toronto restaurant" },
+        { q: "Brothers Food and Wine Toronto" },
+        { q: "The Chase Toronto restaurant" },
+        { q: "Bar Sybanne Toronto" },
+        { q: "Canoe Restaurant Toronto" },
+        { q: "Lena Toronto restaurant" },
+        { q: "Piano Piano Toronto restaurant" },
+        { q: "Bymark Toronto restaurant" },
+        { q: "Khao San Road Toronto" },
+        { q: "Terroni Toronto restaurant" },
+        { q: "Byblos Toronto restaurant" },
+        { q: "Richmond Station Toronto restaurant" },
+        { q: "Sotto Sotto Toronto restaurant" },
+        { q: "Kasa Moto Toronto" },
+        { q: "Jules Bistro Toronto" },
+        { q: "MSSM Toronto restaurant" },
+        { q: "Oretta Toronto restaurant" },
+        { q: "Carbon Bar Toronto" },
+        { q: "Harbour 60 Toronto steakhouse" },
+        { q: "Chotto Matte Toronto" },
+        { q: "Quetzal Toronto restaurant" },
+        { q: "Edulis Toronto restaurant" }
+      ],
+      workouts: [
+        { q: "Studio KO Toronto" },
+        { q: "Yoga Tree Toronto" },
+        { q: "Lagree Toronto fitness" },
+        { q: "Elle Fitness Toronto", d: "Female only" },
+        { q: "Fit Factory Toronto" },
+        { q: "Behot Yoga Toronto" },
+        { q: "Barry's Bootcamp Toronto" },
+        { q: "SpinCo Toronto" },
+        { q: "Ride Cycle Club Toronto" },
+        { q: "Spokhaus Toronto" },
+        { q: "Rise Toronto fitness" },
+        { q: "FLYT Club Toronto" },
+        { q: "Jaybird Toronto fitness" },
+        { q: "F45 Training Toronto", d: "Many locations across Toronto" },
+        { q: "Goodlife Fitness Toronto" },
+        { q: "Equinox Toronto" },
+        { q: "Barre Belle Toronto" },
+        { q: "Rumble Boxing Toronto" },
+        { q: "Sweat and Tonic Toronto" },
+        { q: "Barr3 Toronto" },
+        { q: "Assembly Movement Toronto" },
+        { q: "Fight Klub Toronto" }
+      ],
+      activities: [
+        { q: "The Bentway Toronto", d: "Skating in winter" },
+        { q: "Ballroom Bowl Toronto", d: "Bowling" },
+        { q: "Second City Toronto", d: "Comedy shows" },
+        { q: "Royal Ontario Museum Toronto" },
+        { q: "Nathan Phillips Square Toronto", d: "Skating in winter" },
+        { q: "Harbourfront Centre Toronto", d: "Skating in winter" },
+        { q: "Ripley's Aquarium Toronto" },
+        { q: "Rec Room Toronto" },
+        { q: "The Docks Toronto", d: "Drive-in, mini-putt, driving range" },
+        { q: "Distillery District Toronto", d: "Great for a stroll" },
+        { q: "Evergreen Brick Works Toronto", d: "Farmer's market on Saturday mornings" },
+        { q: "Art Gallery of Ontario Toronto" },
+        { q: "Wychwood Barns Toronto" },
+        { q: "Casa Loma Toronto" },
+        { q: "Trinity Bellwoods Park Toronto", d: "Bring a frisbee, have a picnic, or just people watch" },
+        { q: "Party Putt Toronto" },
+        { q: "BATL Axe Throwing Toronto" },
+        { q: "Lob Toronto bocce", d: "Bocce ball meets mini putt" },
+        { q: "Stackt Market Toronto", d: "Great for shopping around" },
+        { q: "St. Lawrence Market Toronto" },
+        { q: "Jack Layton Ferry Terminal Toronto", d: "Take the ferry to Toronto Island for a beach day" }
+      ],
+      coffee: [
+        { q: "Goldstuck Coffee Toronto" },
+        { q: "Cafe 23 Toronto coffee", d: "Cool backyard patio" },
+        { q: "Cafe Bica Toronto", d: "Walking distance from office" },
+        { q: "Sam James Coffee Bar Toronto" },
+        { q: "White Rabbit Coffee Toronto" },
+        { q: "Three Dots Coffee Toronto" },
+        { q: "Lab Espresso Toronto" },
+        { q: "Propeller Coffee Toronto" },
+        { q: "Versus Coffee Toronto" },
+        { q: "Coffee by Joy Toronto" },
+        { q: "Dineen Coffee Toronto" },
+        { q: "Shy Coffee Toronto" },
+        { q: "Archi Element Coffee Toronto" },
+        { q: "Jimmy's Coffee Toronto" },
+        { q: "The Roasted Nut Toronto" },
+        { q: "915 DuPont Toronto coffee" },
+        { q: "Pilot Coffee Toronto" },
+        { q: "% Arabica Toronto" },
+        { q: "Ratelier Toronto coffee" },
+        { q: "Nutbar Toronto" },
+        { q: "Rooster Coffee House Toronto" },
+        { q: "Mos Mos Coffee Toronto", d: "One location near the office" },
+        { q: "Cafe Pamenar Toronto", d: "Cool backyard patio" },
+        { q: "Fahrenheit Coffee Toronto" },
+        { q: "Neo Coffee Bar Toronto" },
+        { q: "Maman Toronto cafe" },
+        { q: "135 Ossington Toronto" }
+      ],
+      patios: [
+        { q: "Bar Hop Toronto" },
+        { q: "Harriet's Rooftop Toronto 1 Hotel", d: "Rooftop at One Hotel" },
+        { q: "The Broadview Hotel Toronto", d: "Rooftop bar" },
+        { q: "Ace Hotel Toronto" },
+        { q: "Bandit Brewery Toronto" },
+        { q: "Cherry's High Dive Toronto" },
+        { q: "The Porch Toronto bar" },
+        { q: "Hemingway's Toronto", d: "Office watering hole" },
+        { q: "Black Bull Toronto" },
+        { q: "Bar Poet Toronto" },
+        { q: "Her Father's Cider Bar Toronto" },
+        { q: "SOCO Kitchen + Bar Toronto" },
+        { q: "The Parlour Toronto bar" },
+        { q: "Grape Witches Toronto" },
+        { q: "Walrus Toronto bar" },
+        { q: "Writers Room Park Hyatt Toronto", d: "Park Hyatt rooftop" },
+        { q: "Assembly Chef's Hall Toronto" }
+      ]
+    };
+
+    // General seed function — seeds one category at a time
+    function seedCategory(category, places, onComplete) {
+      db.ref("locations").orderByChild("category").equalTo(category)
+        .once("value", snap => {
+          if (snap.exists()) {
+            if (onComplete) onComplete();
+            return;
+          }
+          console.log(`Seeding ${category} (${places.length} places)…`);
+          let i = 0;
+          function next() {
+            if (i >= places.length) {
+              console.log(`${category} seed complete.`);
+              if (onComplete) onComplete();
+              return;
+            }
+            const entry = places[i];
+            placesService.findPlaceFromQuery(
+              { query: entry.q, fields: ["place_id", "geometry", "name"] },
+              (results, status) => {
+                if (status === google.maps.places.PlacesServiceStatus.OK && results && results[0]) {
+                  const p = results[0];
+                  db.ref("locations").push({
+                    name:          p.name,
+                    category:      category,
+                    lat:           p.geometry.location.lat(),
+                    lng:           p.geometry.location.lng(),
+                    description:   entry.d || "",
+                    addedBy:       "Team",
+                    googlePlaceId: p.place_id,
+                    addedAt:       Date.now()
+                  });
+                } else {
+                  console.warn("Could not find:", entry.q, status);
+                }
+                i++;
+                setTimeout(next, 400);
+              }
+            );
+          }
+          next();
+        });
+    }
+
+    function seedAllCategories() {
+      const cats = Object.keys(SEED_DATA);
+      let idx = 0;
+      function runNext() {
+        if (idx >= cats.length) return;
+        const cat = cats[idx];
+        idx++;
+        seedCategory(cat, SEED_DATA[cat], runNext);
+      }
+      runNext();
     }
 
     function formatRelativeTime(ts) {
