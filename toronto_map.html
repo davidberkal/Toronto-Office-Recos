@@ -1,0 +1,1166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Toronto · Team Map</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;600;700&family=Source+Sans+3:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+  <!-- Firebase compat SDK v10 -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <style>
+    /* ── Banyan brand tokens ──────────────────────────────────────── */
+    :root {
+      --moss:        #395542;
+      --moss-light:  rgba(57, 85, 66, 0.10);
+      --sky:         #9BCBEB;
+      --sky-dark:    #2B7EA6;
+      --sky-light:   rgba(155, 203, 235, 0.22);
+      --gold:        #F1BE48;
+      --gold-dark:   #9A6E00;
+      --gold-light:  rgba(241, 190, 72, 0.20);
+      --charcoal:    #414141;
+      --white:       #FFFFFF;
+      --bg:          #F2F2F2;
+      --border:      #DDE2DE;
+      --muted:       #7A8C82;
+      --font-head:   'Libre Franklin', Arial, sans-serif;
+      --font-body:   'Source Sans 3', 'Source Sans Pro', Arial, sans-serif;
+
+      /* ── Map layout ───────────────────────────────────────────── */
+      --header-h:    60px;
+      --sidebar-w:   340px;
+      --detail-w:    380px;
+
+      /* ── Category colours ─────────────────────────────────────── */
+      --pin-lunch:       #395542;
+      --pin-dinner:      #9A6E00;
+      --pin-sightseeing: #2B7EA6;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: var(--font-body);
+      color: var(--charcoal);
+    }
+
+    /* ── Setup banner (shown until API keys are filled in) ──────── */
+    #setup-banner {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      background: #7A3300;
+      color: #fff;
+      font-family: var(--font-body);
+      font-size: 0.82rem;
+      padding: 8px 20px;
+      z-index: 9999;
+      text-align: center;
+      line-height: 1.5;
+    }
+    #setup-banner a { color: #ffd7a0; }
+    #setup-banner.hidden { display: none; }
+
+    /* ── Header ─────────────────────────────────────────────────── */
+    header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--header-h);
+      background: var(--moss);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px 0 24px;
+      z-index: 100;
+    }
+    .header-title {
+      font-family: var(--font-head);
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #fff;
+      letter-spacing: -0.01em;
+    }
+    .header-title span {
+      font-weight: 400;
+      opacity: 0.7;
+      font-size: 0.85rem;
+      margin-left: 8px;
+    }
+    #btn-add-place {
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.35);
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-family: var(--font-body);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #btn-add-place:hover { background: rgba(255,255,255,0.25); }
+
+    /* ── App shell ───────────────────────────────────────────────── */
+    #app {
+      display: flex;
+      position: fixed;
+      top: var(--header-h);
+      left: 0; right: 0; bottom: 0;
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────────────── */
+    #sidebar {
+      width: var(--sidebar-w);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--white);
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    /* Filter chips */
+    .filter-row {
+      display: flex;
+      gap: 6px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .filter-btn {
+      flex: 1;
+      border: 1px solid var(--border);
+      background: var(--white);
+      border-radius: 20px;
+      padding: 5px 0;
+      font-family: var(--font-body);
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+    }
+    .filter-btn:hover { border-color: var(--charcoal); color: var(--charcoal); }
+    .filter-btn.active[data-cat="all"]         { background: var(--charcoal); border-color: var(--charcoal); color: #fff; }
+    .filter-btn.active[data-cat="lunch"]       { background: var(--pin-lunch); border-color: var(--pin-lunch); color: #fff; }
+    .filter-btn.active[data-cat="dinner"]      { background: var(--pin-dinner); border-color: var(--pin-dinner); color: #fff; }
+    .filter-btn.active[data-cat="sightseeing"] { background: var(--pin-sightseeing); border-color: var(--pin-sightseeing); color: #fff; }
+
+    /* Location list */
+    #location-list {
+      overflow-y: auto;
+      flex: 1;
+      list-style: none;
+    }
+    #location-list:empty::after {
+      content: "No places yet. Be the first to add one!";
+      display: block;
+      padding: 28px 20px;
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-align: center;
+    }
+    .loc-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .loc-item:hover { background: var(--bg); }
+    .loc-item.active { background: var(--moss-light); }
+    .loc-cat-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .loc-info { min-width: 0; }
+    .loc-name {
+      display: block;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--charcoal);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .loc-cat-label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-weight: 400;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── Map container ───────────────────────────────────────────── */
+    #map-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+    #map { width: 100%; height: 100%; }
+
+    /* ── Detail panel ────────────────────────────────────────────── */
+    #detail-panel {
+      position: absolute;
+      top: 0; right: 0;
+      width: var(--detail-w);
+      height: 100%;
+      background: var(--white);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 10;
+      transform: translateX(0);
+      transition: transform 0.25s ease;
+      box-shadow: -4px 0 16px rgba(0,0,0,0.08);
+    }
+    #detail-panel.hidden { transform: translateX(100%); }
+
+    #detail-close {
+      position: absolute;
+      top: 12px; right: 14px;
+      background: rgba(65,65,65,0.08);
+      border: none;
+      border-radius: 50%;
+      width: 28px; height: 28px;
+      font-size: 1rem;
+      line-height: 28px;
+      text-align: center;
+      cursor: pointer;
+      color: var(--charcoal);
+      z-index: 2;
+      transition: background 0.12s;
+    }
+    #detail-close:hover { background: rgba(65,65,65,0.16); }
+
+    #detail-photo {
+      width: 100%;
+      height: 180px;
+      background: var(--bg) center/cover no-repeat;
+      flex-shrink: 0;
+      display: none;
+    }
+    #detail-photo-placeholder {
+      width: 100%;
+      height: 80px;
+      background: var(--moss-light);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--moss);
+      font-size: 2rem;
+    }
+
+    .detail-body {
+      overflow-y: auto;
+      flex: 1;
+      padding: 18px 20px 24px;
+    }
+
+    #detail-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+      padding-right: 24px;
+    }
+    #detail-name {
+      font-family: var(--font-head);
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--charcoal);
+      line-height: 1.3;
+    }
+    #detail-cat-badge {
+      flex-shrink: 0;
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #fff;
+      padding: 3px 8px;
+      border-radius: 10px;
+      margin-top: 3px;
+    }
+
+    #detail-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .meta-tag {
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 4px;
+      background: var(--bg);
+      color: var(--charcoal);
+    }
+    .meta-tag.open   { background: rgba(57,85,66,0.12); color: var(--moss); }
+    .meta-tag.closed { background: rgba(65,65,65,0.08); color: var(--muted); }
+
+    #detail-description {
+      font-size: 0.88rem;
+      line-height: 1.55;
+      color: var(--charcoal);
+      margin-bottom: 14px;
+      font-style: italic;
+    }
+    #detail-description:empty { display: none; }
+
+    #detail-gmaps-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--sky-dark);
+      text-decoration: none;
+      margin-bottom: 20px;
+    }
+    #detail-gmaps-link:hover { text-decoration: underline; }
+
+    .detail-added-by {
+      font-size: 0.73rem;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+
+    /* ── Comments ────────────────────────────────────────────────── */
+    #comments-section h3 {
+      font-family: var(--font-head);
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    #comments-list {
+      list-style: none;
+      margin-bottom: 16px;
+    }
+    .comment-item {
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .comment-item:last-child { border-bottom: none; }
+    .comment-meta {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .comment-author {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--charcoal);
+    }
+    .comment-time {
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .comment-text {
+      font-size: 0.85rem;
+      line-height: 1.5;
+      color: var(--charcoal);
+    }
+    .no-comments {
+      font-size: 0.82rem;
+      color: var(--muted);
+      padding: 8px 0 12px;
+      font-style: italic;
+    }
+
+    /* Comment form */
+    #comment-form {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #comment-form input,
+    #comment-form textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-family: var(--font-body);
+      font-size: 0.83rem;
+      color: var(--charcoal);
+      background: var(--white);
+      resize: vertical;
+      transition: border-color 0.15s;
+    }
+    #comment-form input:focus,
+    #comment-form textarea:focus {
+      outline: none;
+      border-color: var(--moss);
+    }
+    #comment-form textarea { min-height: 72px; }
+    #comment-form button {
+      align-self: flex-end;
+      background: var(--moss);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 18px;
+      font-family: var(--font-body);
+      font-size: 0.83rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    #comment-form button:hover { opacity: 0.88; }
+
+    /* ── Add Place Modal ─────────────────────────────────────────── */
+    #modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(65,65,65,0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+    #modal-overlay.hidden { display: none; }
+
+    #modal {
+      background: var(--white);
+      border-radius: 12px;
+      padding: 28px 30px 30px;
+      width: min(480px, 94vw);
+      max-height: 90vh;
+      overflow-y: auto;
+      position: relative;
+    }
+    #modal h2 {
+      font-family: var(--font-head);
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--charcoal);
+      margin-bottom: 20px;
+    }
+    #modal-close {
+      position: absolute;
+      top: 14px; right: 16px;
+      background: rgba(65,65,65,0.08);
+      border: none;
+      border-radius: 50%;
+      width: 28px; height: 28px;
+      font-size: 1rem;
+      line-height: 28px;
+      text-align: center;
+      cursor: pointer;
+      color: var(--charcoal);
+      transition: background 0.12s;
+    }
+    #modal-close:hover { background: rgba(65,65,65,0.16); }
+
+    .modal-field {
+      margin-bottom: 14px;
+    }
+    .modal-field label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 5px;
+    }
+    .modal-field input,
+    .modal-field select,
+    .modal-field textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 9px 11px;
+      font-family: var(--font-body);
+      font-size: 0.88rem;
+      color: var(--charcoal);
+      background: var(--white);
+      resize: vertical;
+      transition: border-color 0.15s;
+      appearance: none;
+    }
+    .modal-field input:focus,
+    .modal-field select:focus,
+    .modal-field textarea:focus {
+      outline: none;
+      border-color: var(--moss);
+    }
+    .modal-field select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237A8C82' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 11px center;
+      padding-right: 32px;
+    }
+    .modal-field textarea { min-height: 80px; }
+
+    .place-search-wrap { position: relative; }
+    #place-confirmed {
+      display: none;
+      font-size: 0.78rem;
+      color: var(--moss);
+      font-weight: 600;
+      margin-top: 5px;
+    }
+
+    #modal-submit {
+      width: 100%;
+      margin-top: 6px;
+      background: var(--moss);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-family: var(--font-body);
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    #modal-submit:hover { opacity: 0.88; }
+
+    /* Google autocomplete dropdown z-index fix */
+    .pac-container { z-index: 9999 !important; }
+
+    /* ── Scrollbar styling ───────────────────────────────────────── */
+    #location-list::-webkit-scrollbar,
+    .detail-body::-webkit-scrollbar,
+    #modal::-webkit-scrollbar { width: 5px; }
+    #location-list::-webkit-scrollbar-track,
+    .detail-body::-webkit-scrollbar-track,
+    #modal::-webkit-scrollbar-track { background: transparent; }
+    #location-list::-webkit-scrollbar-thumb,
+    .detail-body::-webkit-scrollbar-thumb,
+    #modal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+  </style>
+</head>
+<body>
+
+  <!-- ── Setup banner (remove once API keys are added) ──────────── -->
+  <div id="setup-banner">
+    ⚠️ <strong>Setup required:</strong> Add your Google Maps API key and Firebase config in the <code>&lt;script&gt;</code> section.
+    See the TODO comments near the top of the JS block.
+  </div>
+
+  <!-- ── Header ────────────────────────────────────────────────── -->
+  <header>
+    <div class="header-title">
+      Toronto · Team Map
+      <span>2 Bloor St W</span>
+    </div>
+    <button id="btn-add-place">+ Add a Place</button>
+  </header>
+
+  <!-- ── App shell ─────────────────────────────────────────────── -->
+  <div id="app">
+
+    <!-- ── Left sidebar ──────────────────────────────────────────── -->
+    <aside id="sidebar">
+      <div class="filter-row">
+        <button class="filter-btn active" data-cat="all">All</button>
+        <button class="filter-btn" data-cat="lunch">Lunch</button>
+        <button class="filter-btn" data-cat="dinner">Dinner</button>
+        <button class="filter-btn" data-cat="sightseeing">See</button>
+      </div>
+      <ul id="location-list"></ul>
+    </aside>
+
+    <!-- ── Map ───────────────────────────────────────────────────── -->
+    <div id="map-container">
+      <div id="map"></div>
+
+      <!-- ── Detail panel (slides in over map) ──────────────────── -->
+      <aside id="detail-panel" class="hidden">
+        <button id="detail-close" title="Close">×</button>
+        <div id="detail-photo"></div>
+        <div id="detail-photo-placeholder">📍</div>
+        <div class="detail-body">
+          <div id="detail-header">
+            <h2 id="detail-name"></h2>
+            <span id="detail-cat-badge"></span>
+          </div>
+          <div id="detail-meta"></div>
+          <p id="detail-description"></p>
+          <a id="detail-gmaps-link" target="_blank" rel="noopener noreferrer">
+            ↗ Open in Google Maps
+          </a>
+          <div class="detail-added-by" id="detail-added-by"></div>
+          <section id="comments-section">
+            <h3>Comments</h3>
+            <ul id="comments-list"></ul>
+            <form id="comment-form" autocomplete="off">
+              <input id="comment-author" type="text" placeholder="Your name" maxlength="60" required />
+              <textarea id="comment-text" placeholder="Add a tip or comment…" maxlength="400" required></textarea>
+              <button type="submit">Post</button>
+            </form>
+          </section>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- ── Add Place Modal ───────────────────────────────────────── -->
+  <div id="modal-overlay" class="hidden">
+    <div id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <button id="modal-close" title="Close">×</button>
+      <h2 id="modal-title">Add a Place</h2>
+
+      <div class="modal-field">
+        <label for="place-search">Search for a place</label>
+        <div class="place-search-wrap">
+          <input id="place-search" type="text"
+            placeholder="e.g. Pai Northern Thai Kitchen"
+            autocomplete="off" />
+        </div>
+        <div id="place-confirmed"></div>
+      </div>
+
+      <!-- Hidden — populated by Places Autocomplete -->
+      <input type="hidden" id="place-id" />
+      <input type="hidden" id="place-lat" />
+      <input type="hidden" id="place-lng" />
+      <input type="hidden" id="place-name-hidden" />
+
+      <div class="modal-field">
+        <label for="place-category">Category</label>
+        <select id="place-category">
+          <option value="lunch">🥗 Lunch — nearby office</option>
+          <option value="dinner">🍽️ Dinner</option>
+          <option value="sightseeing">🗺️ Sightseeing</option>
+        </select>
+      </div>
+
+      <div class="modal-field">
+        <label for="place-description">Your tip <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+        <textarea id="place-description" maxlength="500"
+          placeholder="What makes it worth visiting? What should people order?"></textarea>
+      </div>
+
+      <div class="modal-field">
+        <label for="place-author">Your name</label>
+        <input id="place-author" type="text" maxlength="60" placeholder="e.g. Alex" required />
+      </div>
+
+      <button id="modal-submit">Add Place</button>
+    </div>
+  </div>
+
+  <script>
+    // ── TODO: Add your API keys here ─────────────────────────────
+    //
+    // 1. GOOGLE MAPS API KEY
+    //    - Go to https://console.cloud.google.com
+    //    - Create a project, enable "Maps JavaScript API" and "Places API"
+    //    - Create an API key under Credentials
+    //    - (Optional) Restrict key to HTTP referrers for your domain
+    //
+    const MAPS_API_KEY = "AIzaSyDD45fUw9-RkPNxfZs04WKkC9-AsQzrmjk";
+    //
+    // 2. FIREBASE CONFIG
+    //    - Go to https://console.firebase.google.com
+    //    - Create a project, add a Web app
+    //    - Enable Realtime Database (start in test mode)
+    //    - Copy the firebaseConfig object here
+    //    - In Realtime Database → Rules, paste: { "rules": { ".read": true, ".write": true } }
+    //
+    const FIREBASE_CONFIG = {
+      apiKey:            "AIzaSyC8UYBOJFxi8JvGKosoyDjE-fUqcyCc0y8",
+      authDomain:        "test-project-308c6.firebaseapp.com",
+      databaseURL:       "https://test-project-308c6-default-rtdb.firebaseio.com",
+      projectId:         "test-project-308c6",
+      storageBucket:     "test-project-308c6.firebasestorage.app",
+      messagingSenderId: "512639487589",
+      appId:             "1:512639487589:web:53a2db3cdc143ac3d4008c"
+    };
+    //
+    // ─────────────────────────────────────────────────────────────
+
+    // ── Map config ───────────────────────────────────────────────
+    const MAP_CENTER = { lat: 43.6686, lng: -79.3853 }; // 2 Bloor St W
+    const MAP_ZOOM   = 15;
+
+    const CATEGORIES = {
+      lunch:       { label: "Lunch",       color: "#395542" },
+      dinner:      { label: "Dinner",      color: "#9A6E00" },
+      sightseeing: { label: "Sightseeing", color: "#2B7EA6" }
+    };
+
+    const SUBTLE_MAP_STYLES = [
+      { featureType: "poi",     elementType: "labels", stylers: [{ visibility: "off" }] },
+      { featureType: "transit", elementType: "labels", stylers: [{ visibility: "simplified" }] },
+      { elementType: "geometry",                       stylers: [{ saturation: -20 }] }
+    ];
+
+    // ── State ────────────────────────────────────────────────────
+    let map;
+    let markers = {};            // locationId → google.maps.Marker
+    let allLocations = [];       // cached for filter re-renders
+    let activeCategory = "all";
+    let activeLocationId = null;
+    let placesService;
+    let autocomplete;
+    let commentsUnsubscribe = null;
+    let db;
+
+    // ── Setup banner check ───────────────────────────────────────
+    function isSetupComplete() {
+      return MAPS_API_KEY !== "YOUR_GOOGLE_MAPS_API_KEY" &&
+             FIREBASE_CONFIG.databaseURL !== "https://YOUR_PROJECT-default-rtdb.firebaseio.com";
+    }
+
+    // ── Firebase ─────────────────────────────────────────────────
+    function initFirebase() {
+      firebase.initializeApp(FIREBASE_CONFIG);
+      db = firebase.database();
+    }
+
+    function subscribeLocations(callback) {
+      db.ref("locations").on("value", snap => {
+        const raw = snap.val() || {};
+        const locations = Object.entries(raw).map(([id, data]) => ({ id, ...data }));
+        callback(locations);
+      });
+    }
+
+    function addLocation(payload) {
+      return db.ref("locations").push(payload);
+    }
+
+    function addComment(locationId, authorName, text) {
+      return db.ref(`comments/${locationId}`).push({
+        authorName,
+        text,
+        timestamp: Date.now()
+      });
+    }
+
+    // ── Map + Pins ───────────────────────────────────────────────
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center:              MAP_CENTER,
+        zoom:                MAP_ZOOM,
+        mapTypeControl:      false,
+        streetViewControl:   false,
+        fullscreenControl:   false,
+        styles:              SUBTLE_MAP_STYLES
+      });
+
+      // Office marker
+      new google.maps.Marker({
+        position: MAP_CENTER,
+        map,
+        title:  "Banyan Office — 2 Bloor St W",
+        zIndex: 10,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 8,
+          fillColor: "#fff",
+          fillOpacity: 1,
+          strokeColor: "#395542",
+          strokeWeight: 3
+        }
+      });
+
+      placesService = new google.maps.places.PlacesService(map);
+      initAutocomplete();
+
+      initFirebase();
+      subscribeLocations(onLocationsUpdate);
+
+      // Hide setup banner if keys look real
+      if (isSetupComplete()) {
+        document.getElementById("setup-banner").classList.add("hidden");
+        document.body.style.paddingTop = "";
+      }
+    }
+
+    function onLocationsUpdate(locations) {
+      allLocations = locations;
+
+      // Remove markers for deleted locations
+      const currentIds = new Set(locations.map(l => l.id));
+      Object.keys(markers).forEach(id => {
+        if (!currentIds.has(id)) {
+          markers[id].setMap(null);
+          delete markers[id];
+        }
+      });
+
+      // Add markers for new locations
+      locations.forEach(loc => {
+        if (!markers[loc.id]) {
+          markers[loc.id] = createMarker(loc);
+        }
+      });
+
+      renderSidebar();
+    }
+
+    function createMarker(loc) {
+      const color = CATEGORIES[loc.category]?.color || "#414141";
+      const marker = new google.maps.Marker({
+        position: { lat: loc.lat, lng: loc.lng },
+        map,
+        title: loc.name,
+        icon:  buildPinIcon(color)
+      });
+      marker.addListener("click", () => openDetail(loc.id));
+      return marker;
+    }
+
+    function buildPinIcon(color) {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="40" viewBox="0 0 28 40">
+        <path d="M14 0C6.27 0 0 6.27 0 14c0 9.25 12.43 24.35 13.23 25.31a1.05 1.05 0 0 0 1.54 0C15.57 38.35 28 23.25 28 14 28 6.27 21.73 0 14 0z"
+          fill="${color}" opacity="0.9"/>
+        <circle cx="14" cy="13" r="5.5" fill="#fff" opacity="0.85"/>
+      </svg>`;
+      return {
+        url:         "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg),
+        scaledSize:  new google.maps.Size(28, 40),
+        anchor:      new google.maps.Point(14, 40)
+      };
+    }
+
+    // ── Sidebar ──────────────────────────────────────────────────
+    function renderSidebar() {
+      const filtered = activeCategory === "all"
+        ? allLocations
+        : allLocations.filter(l => l.category === activeCategory);
+
+      // Sort: alphabetically within category
+      filtered.sort((a, b) => a.name.localeCompare(b.name));
+
+      const list = document.getElementById("location-list");
+      list.innerHTML = filtered.map(loc => `
+        <li class="loc-item ${loc.id === activeLocationId ? "active" : ""}"
+            onclick="openDetail('${escHtml(loc.id)}')">
+          <span class="loc-cat-dot"
+            style="background:${escHtml(CATEGORIES[loc.category]?.color || "#414141")}"></span>
+          <div class="loc-info">
+            <strong class="loc-name">${escHtml(loc.name)}</strong>
+            <span class="loc-cat-label">${escHtml(CATEGORIES[loc.category]?.label || loc.category)}</span>
+          </div>
+        </li>
+      `).join("");
+
+      // Sync pin visibility with active filter
+      allLocations.forEach(loc => {
+        if (markers[loc.id]) {
+          const visible = activeCategory === "all" || loc.category === activeCategory;
+          markers[loc.id].setVisible(visible);
+        }
+      });
+    }
+
+    // Filter chip listeners
+    document.querySelectorAll(".filter-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        activeCategory = btn.dataset.cat;
+        renderSidebar();
+      });
+    });
+
+    // ── Detail Panel ─────────────────────────────────────────────
+    function openDetail(locationId) {
+      activeLocationId = locationId;
+      renderSidebar(); // update active highlight
+
+      const panel = document.getElementById("detail-panel");
+      panel.classList.remove("hidden");
+
+      db.ref(`locations/${locationId}`).once("value").then(snap => {
+        const loc = snap.val();
+        if (!loc) return;
+
+        // Name + badge
+        document.getElementById("detail-name").textContent = loc.name;
+        const badge = document.getElementById("detail-cat-badge");
+        badge.textContent = CATEGORIES[loc.category]?.label || loc.category;
+        badge.style.background = CATEGORIES[loc.category]?.color || "#414141";
+
+        // Tip
+        document.getElementById("detail-description").textContent = loc.description || "";
+
+        // Added by
+        document.getElementById("detail-added-by").textContent =
+          loc.addedBy ? `Added by ${loc.addedBy}` : "";
+
+        // Google Maps link
+        const gmapsLink = document.getElementById("detail-gmaps-link");
+        gmapsLink.href = `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(loc.googlePlaceId)}`;
+
+        // Reset meta + photo
+        document.getElementById("detail-meta").innerHTML = "";
+        const photoEl = document.getElementById("detail-photo");
+        const placeholderEl = document.getElementById("detail-photo-placeholder");
+        photoEl.style.backgroundImage = "";
+        photoEl.style.display = "none";
+        placeholderEl.style.display = "flex";
+
+        // Pan map
+        map.panTo({ lat: loc.lat, lng: loc.lng });
+
+        // Fetch enriched data
+        if (loc.googlePlaceId) fetchPlaceDetails(loc.googlePlaceId);
+      });
+
+      // Live comments subscription
+      if (commentsUnsubscribe) commentsUnsubscribe();
+      const commentsRef = db.ref(`comments/${locationId}`);
+      commentsRef.on("value", snap => {
+        const raw = snap.val() || {};
+        const comments = Object.values(raw).sort((a, b) => a.timestamp - b.timestamp);
+        renderComments(comments);
+      });
+      commentsUnsubscribe = () => commentsRef.off("value");
+    }
+
+    function closeDetail() {
+      document.getElementById("detail-panel").classList.add("hidden");
+      if (commentsUnsubscribe) { commentsUnsubscribe(); commentsUnsubscribe = null; }
+      activeLocationId = null;
+      renderSidebar();
+    }
+
+    document.getElementById("detail-close").addEventListener("click", closeDetail);
+
+    // ── Places API enrichment ────────────────────────────────────
+    function fetchPlaceDetails(placeId) {
+      placesService.getDetails(
+        {
+          placeId,
+          fields: ["photos", "opening_hours", "price_level", "rating", "user_ratings_total"]
+        },
+        (place, status) => {
+          if (status !== google.maps.places.PlacesServiceStatus.OK || !place) return;
+
+          // Photo
+          const photoEl      = document.getElementById("detail-photo");
+          const placeholderEl = document.getElementById("detail-photo-placeholder");
+          if (place.photos && place.photos.length > 0) {
+            const url = place.photos[0].getUrl({ maxWidth: 380, maxHeight: 200 });
+            photoEl.style.backgroundImage = `url(${url})`;
+            photoEl.style.display = "block";
+            placeholderEl.style.display = "none";
+          }
+
+          // Meta row
+          const meta = document.getElementById("detail-meta");
+          meta.innerHTML = "";
+
+          if (place.opening_hours) {
+            const isOpen = place.opening_hours?.isOpen?.();
+            const tag = document.createElement("span");
+            tag.className = "meta-tag " + (isOpen ? "open" : "closed");
+            tag.textContent = isOpen ? "Open now" : "Closed";
+            meta.appendChild(tag);
+          }
+
+          if (place.price_level != null && place.price_level > 0) {
+            const tag = document.createElement("span");
+            tag.className = "meta-tag";
+            tag.textContent = "$".repeat(place.price_level);
+            meta.appendChild(tag);
+          }
+
+          if (place.rating) {
+            const tag = document.createElement("span");
+            tag.className = "meta-tag";
+            tag.textContent = `${place.rating} ★` +
+              (place.user_ratings_total ? ` (${place.user_ratings_total.toLocaleString()})` : "");
+            meta.appendChild(tag);
+          }
+        }
+      );
+    }
+
+    // ── Comments ─────────────────────────────────────────────────
+    function renderComments(comments) {
+      const list = document.getElementById("comments-list");
+      if (comments.length === 0) {
+        list.innerHTML = '<li class="no-comments">No comments yet. Be the first!</li>';
+        return;
+      }
+      list.innerHTML = comments.map(c => `
+        <li class="comment-item">
+          <div class="comment-meta">
+            <span class="comment-author">${escHtml(c.authorName)}</span>
+            <span class="comment-time">${formatRelativeTime(c.timestamp)}</span>
+          </div>
+          <p class="comment-text">${escHtml(c.text)}</p>
+        </li>
+      `).join("");
+      // Scroll to bottom of comments
+      list.scrollTop = list.scrollHeight;
+    }
+
+    document.getElementById("comment-form").addEventListener("submit", e => {
+      e.preventDefault();
+      if (!activeLocationId) return;
+      const author = document.getElementById("comment-author").value.trim();
+      const text   = document.getElementById("comment-text").value.trim();
+      if (!author || !text) return;
+      const btn = e.target.querySelector("button");
+      btn.disabled = true;
+      addComment(activeLocationId, author, text).then(() => {
+        document.getElementById("comment-text").value = "";
+        btn.disabled = false;
+      }).catch(() => { btn.disabled = false; });
+    });
+
+    // ── Add Place Modal ──────────────────────────────────────────
+    function initAutocomplete() {
+      const input = document.getElementById("place-search");
+      autocomplete = new google.maps.places.Autocomplete(input, {
+        fields: ["place_id", "geometry", "name"],
+        locationRestriction: {
+          north: 43.855, south: 43.580,
+          east: -79.116, west: -79.640
+        }
+      });
+
+      autocomplete.addListener("place_changed", () => {
+        const place = autocomplete.getPlace();
+        if (!place.geometry) {
+          document.getElementById("place-confirmed").style.display = "none";
+          return;
+        }
+        document.getElementById("place-id").value          = place.place_id;
+        document.getElementById("place-lat").value         = place.geometry.location.lat();
+        document.getElementById("place-lng").value         = place.geometry.location.lng();
+        document.getElementById("place-name-hidden").value = place.name;
+        input.value = place.name;
+
+        const confirmed = document.getElementById("place-confirmed");
+        confirmed.textContent = "✓ " + place.name + " selected";
+        confirmed.style.display = "block";
+      });
+    }
+
+    function openModal() {
+      document.getElementById("modal-overlay").classList.remove("hidden");
+      document.getElementById("place-search").focus();
+    }
+
+    function closeModal() {
+      document.getElementById("modal-overlay").classList.add("hidden");
+      resetModal();
+    }
+
+    function resetModal() {
+      document.getElementById("place-search").value = "";
+      document.getElementById("place-id").value = "";
+      document.getElementById("place-lat").value = "";
+      document.getElementById("place-lng").value = "";
+      document.getElementById("place-name-hidden").value = "";
+      document.getElementById("place-description").value = "";
+      document.getElementById("place-author").value = "";
+      document.getElementById("place-confirmed").style.display = "none";
+      document.getElementById("place-category").value = "lunch";
+    }
+
+    document.getElementById("btn-add-place").addEventListener("click", openModal);
+    document.getElementById("modal-close").addEventListener("click", closeModal);
+    document.getElementById("modal-overlay").addEventListener("click", e => {
+      if (e.target === e.currentTarget) closeModal();
+    });
+
+    document.getElementById("modal-submit").addEventListener("click", () => {
+      const placeId  = document.getElementById("place-id").value;
+      const lat      = parseFloat(document.getElementById("place-lat").value);
+      const lng      = parseFloat(document.getElementById("place-lng").value);
+      const name     = document.getElementById("place-name-hidden").value;
+      const category = document.getElementById("place-category").value;
+      const desc     = document.getElementById("place-description").value.trim();
+      const author   = document.getElementById("place-author").value.trim();
+
+      if (!placeId || !name) {
+        alert("Please search for and select a place from the dropdown.");
+        document.getElementById("place-search").focus();
+        return;
+      }
+      if (!author) {
+        alert("Please enter your name.");
+        document.getElementById("place-author").focus();
+        return;
+      }
+
+      const btn = document.getElementById("modal-submit");
+      btn.disabled = true;
+      btn.textContent = "Adding…";
+
+      addLocation({
+        name, category,
+        lat, lng,
+        description: desc,
+        addedBy: author,
+        googlePlaceId: placeId,
+        addedAt: Date.now()
+      }).then(() => {
+        closeModal();
+        btn.disabled = false;
+        btn.textContent = "Add Place";
+      }).catch(err => {
+        alert("Error saving. Check your Firebase config.");
+        console.error(err);
+        btn.disabled = false;
+        btn.textContent = "Add Place";
+      });
+    });
+
+    // ── Utilities ────────────────────────────────────────────────
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g,"&amp;")
+        .replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;");
+    }
+
+    function formatRelativeTime(ts) {
+      const diffMs  = Date.now() - ts;
+      const diffMin = Math.floor(diffMs / 60000);
+      if (diffMin < 1)   return "just now";
+      if (diffMin < 60)  return `${diffMin}m ago`;
+      const diffHr = Math.floor(diffMin / 60);
+      if (diffHr < 24)   return `${diffHr}h ago`;
+      const diffDay = Math.floor(diffHr / 24);
+      if (diffDay < 7)   return `${diffDay}d ago`;
+      return new Date(ts).toLocaleDateString("en-CA", { month: "short", day: "numeric" });
+    }
+  </script>
+
+  <!-- Google Maps JS API — replace YOUR_GOOGLE_MAPS_API_KEY above first -->
+  <script>
+    // Dynamically build the Maps script tag using the key defined above
+    (function() {
+      const s = document.createElement("script");
+      s.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_API_KEY}&libraries=places&callback=initMap`;
+      s.async = true;
+      s.defer = true;
+      document.head.appendChild(s);
+    })();
+  </script>
+
+</body>
+</html>
